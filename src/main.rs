@@ -3,6 +3,7 @@ use actix_files::{Files, NamedFile};
 use serde::{Deserialize, Serialize};
 use regex::Regex;
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use chrono::{Utc, NaiveDateTime, Timelike};
 use urlencoding;
 
@@ -30,31 +31,35 @@ struct QrDataResponse {
     content: String,
 }
 
-// 应用状态，用于存储最后扫描的二维码数据
+// 扫描的二维码数据结构
 #[derive(Debug, Clone)]
-struct LastScannedData {
+struct ScannedData {
     id: String,
     site_id: String,
     create_time: String,
     class_lesson_id: String,
-    has_scanned: bool,  // 标记是否已经扫描过
-    scan_timestamp: Option<chrono::DateTime<chrono::Utc>>,  // 扫描时间戳，用于过期检查
+    scan_timestamp: chrono::DateTime<chrono::Utc>,  // 扫描时间戳，用于过期检查
 }
 
-impl Default for LastScannedData {
+// 应用状态，用于存储多个class_lesson_id对应的扫描数据
+#[derive(Debug, Default)]
+struct AppData {
+    scanned_data: HashMap<String, ScannedData>,  // class_lesson_id -> ScannedData
+}
+
+impl Default for ScannedData {
     fn default() -> Self {
         Self {
             id: String::new(),
             site_id: String::new(),
             create_time: String::new(),
             class_lesson_id: String::new(),
-            has_scanned: false,  // 默认未扫描过
-            scan_timestamp: None,  // 默认无扫描时间戳
+            scan_timestamp: Utc::now(),
         }
     }
 }
 
-type AppState = Arc<Mutex<LastScannedData>>;
+type AppState = Arc<Mutex<AppData>>;
 
 // 扫描页面 (根路径)
 async fn scan_page() -> Result<NamedFile> {
@@ -75,19 +80,12 @@ async fn generate_page(path: web::Path<(String, String)>, app_state: web::Data<A
     let class_lesson_id = content;
     
     // 检查是否有对应class_lesson_id的扫描数据
-    let last_scanned_data = app_state.lock().unwrap();
+    let app_data = app_state.lock().unwrap();
     
-    if !last_scanned_data.has_scanned || last_scanned_data.class_lesson_id != class_lesson_id {
-        // 没有对应的扫描数据，重定向到扫描页面
-        return Ok(HttpResponse::Found()
-            .append_header(("Location", "/"))
-            .finish());
-    }
-    
-    // 检查扫描时间是否超过10分钟
-    if let Some(scan_time) = last_scanned_data.scan_timestamp {
+    if let Some(scanned_data) = app_data.scanned_data.get(&class_lesson_id) {
+        // 检查扫描时间是否超过10分钟
         let current_time = Utc::now();
-        let elapsed = current_time - scan_time;
+        let elapsed = current_time - scanned_data.scan_timestamp;
         
         if elapsed > chrono::Duration::minutes(10) {
             // 二维码已过期，重定向到扫描页面
@@ -95,9 +93,14 @@ async fn generate_page(path: web::Path<(String, String)>, app_state: web::Data<A
                 .append_header(("Location", "/"))
                 .finish());
         }
+    } else {
+        // 没有对应的扫描数据，重定向到扫描页面
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/"))
+            .finish());
     }
     
-    drop(last_scanned_data);
+    drop(app_data);
     
     // 返回生成页面
     match std::fs::read_to_string("./static/generate.html") {
@@ -125,17 +128,19 @@ async fn submit_qr_code(data: web::Json<QrCodeData>, app_state: web::Data<AppSta
         
         println!("解析到的签名码信息: {:?}", signing_code);
         
-        // 更新应用状态中的最后扫描数据
+        // 更新应用状态中的扫描数据
         {
-            let mut last_scanned_data = app_state.lock().unwrap();
-            *last_scanned_data = LastScannedData {
+            let mut app_data = app_state.lock().unwrap();
+            let scanned_data = ScannedData {
                 id: signing_code.id.clone(),
                 site_id: signing_code.site_id.clone(),
                 create_time: signing_code.create_time.clone(),
                 class_lesson_id: signing_code.class_lesson_id.clone(),
-                has_scanned: true,  // 标记已经扫描过
-                scan_timestamp: Some(Utc::now()),  // 记录扫描时间戳
+                scan_timestamp: Utc::now(),  // 记录扫描时间戳
             };
+            
+            // 将扫描数据存储到对应的class_lesson_id下
+            app_data.scanned_data.insert(signing_code.class_lesson_id.clone(), scanned_data);
         }
         
         let response = ApiResponse {
@@ -156,41 +161,41 @@ async fn submit_qr_code(data: web::Json<QrCodeData>, app_state: web::Data<AppSta
     }
 }
 
-async fn get_qr_data(app_state: web::Data<AppState>) -> Result<HttpResponse> {
-    // 获取应用状态中的最后扫描数据
-    let mut last_scanned_data = app_state.lock().unwrap();
+async fn get_qr_data(path: web::Path<String>, app_state: web::Data<AppState>) -> Result<HttpResponse> {
+    let class_lesson_id = path.into_inner();
     
-    // 检查是否已经扫描过二维码
-    if !last_scanned_data.has_scanned {
-        println!("尚未扫描过二维码，无法生成");
+    // 获取应用状态中的扫描数据
+    let app_data = app_state.lock().unwrap();
+    
+    // 检查是否有对应class_lesson_id的扫描数据
+    let scanned_data = match app_data.scanned_data.get(&class_lesson_id) {
+        Some(data) => data,
+        None => {
+            println!("尚未扫描过class_lesson_id={}的二维码，无法生成", class_lesson_id);
+            let response = ApiResponse {
+                status: "error".to_string(),
+                message: "请先扫描二维码后再生成".to_string(),
+            };
+            return Ok(HttpResponse::BadRequest().json(response));
+        }
+    };
+    
+    // 检查扫描时间是否超过10分钟
+    let current_time = Utc::now();
+    let elapsed = current_time - scanned_data.scan_timestamp;
+    
+    if elapsed > chrono::Duration::minutes(10) {
+        println!("二维码已过期（超过10分钟），需要重新扫描");
+        // 注意：这里暂时不清除过期数据，只是返回错误
         let response = ApiResponse {
             status: "error".to_string(),
-            message: "请先扫描二维码后再生成".to_string(),
+            message: "二维码已过期，请重新扫描".to_string(),
         };
         return Ok(HttpResponse::BadRequest().json(response));
     }
     
-    // 检查扫描时间是否超过10分钟
-    if let Some(scan_time) = last_scanned_data.scan_timestamp {
-        let current_time = Utc::now();
-        let elapsed = current_time - scan_time;
-        
-        if elapsed > chrono::Duration::minutes(10) {
-            println!("二维码已过期（超过10分钟），需要重新扫描");
-            // 清除过期的扫描数据
-            *last_scanned_data = LastScannedData::default();
-            drop(last_scanned_data); // 释放锁
-            
-            let response = ApiResponse {
-                status: "error".to_string(),
-                message: "二维码已过期，请重新扫描".to_string(),
-            };
-            return Ok(HttpResponse::BadRequest().json(response));
-        }
-    }
-    
     // 解析扫描时间 (格式: 2025-06-04T09:52:14.04)
-    let scanned_time_str = &last_scanned_data.create_time;
+    let scanned_time_str = &scanned_data.create_time;
     
     // URL解码时间字符串（如果需要的话）
     let decoded_time_str = urlencoding::decode(scanned_time_str)
@@ -264,10 +269,10 @@ async fn get_qr_data(app_state: web::Data<AppState>) -> Result<HttpResponse> {
 
     // 构造content字符串
     let content = format!("checkwork|id={}&siteId={}&createTime={}&classLessonId={}", 
-        last_scanned_data.id, 
-        last_scanned_data.site_id, 
+        scanned_data.id, 
+        scanned_data.site_id, 
         new_time_str, 
-        last_scanned_data.class_lesson_id);
+        scanned_data.class_lesson_id);
     
     println!("生成二维码数据: {}", content);
     
@@ -301,7 +306,7 @@ async fn main() -> std::io::Result<()> {
             .route("/", web::get().to(scan_page))
             .route("/gencode/{type}/{content}", web::get().to(generate_page))
             .route("/api/qr-code", web::post().to(submit_qr_code))
-            .route("/api/qr-data", web::get().to(get_qr_data))
+            .route("/api/qr-data/{class_lesson_id}", web::get().to(get_qr_data))
             .service(Files::new("/static", "./static").show_files_listing())
     })
     .bind(format!("0.0.0.0:{}", port))?

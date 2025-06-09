@@ -15,25 +15,37 @@ window.addEventListener('DOMContentLoaded', function() {
 });
 
 async function initializeApp() {
-    // 自动生成二维码
-    await generateQRCode();
-    
-    // 设置定时刷新（每5秒）
-    autoRefreshInterval = setInterval(async () => {
-        if (!isAutoGenerating) {
-            await generateQRCode();
-        }
-    }, 5000);
+    // 从URL中提取class_lesson_id
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts.length >= 4 && pathParts[1] === 'gencode' && pathParts[2] === 'classid') {
+        const classLessonId = pathParts[3];
+        
+        // 自动生成二维码
+        await generateQRCode(classLessonId);
+        
+        // 设置定时刷新（每2秒）
+        autoRefreshInterval = setInterval(async () => {
+            if (!isAutoGenerating) {
+                await generateQRCode(classLessonId);
+            }
+        }, 2000);
+    } else {
+        // URL格式不正确，跳转到扫描页面
+        updateQRStatus('URL格式错误，正在跳转...', 'error');
+        setTimeout(() => {
+            window.location.href = '/';
+        }, 2000);
+    }
 }
 
-async function generateQRCode() {
+async function generateQRCode(classLessonId) {
     if (isAutoGenerating) return;
     
     isAutoGenerating = true;
     showLoading();
     
     try {
-        const response = await fetch('/api/qr-data');
+        const response = await fetch(`/api/qr-data/${classLessonId}`);
         const data = await response.json();
         
         if (response.ok && data.content) {
@@ -52,7 +64,7 @@ async function generateQRCode() {
             if (data.message && (data.message.includes('过期') || data.message.includes('扫描'))) {
                 setTimeout(() => {
                     window.location.href = '/';
-                }, 3000);
+                }, 1500);
             }
         }
     } catch (error) {
@@ -126,7 +138,12 @@ async function copyCurrentLink() {
 
 // 手动生成按钮事件
 generateBtn.addEventListener('click', async () => {
-    await generateQRCode();
+    // 从URL中提取class_lesson_id
+    const pathParts = window.location.pathname.split('/');
+    if (pathParts.length >= 4 && pathParts[1] === 'gencode' && pathParts[2] === 'classid') {
+        const classLessonId = pathParts[3];
+        await generateQRCode(classLessonId);
+    }
 });
 
 // 复制链接按钮事件

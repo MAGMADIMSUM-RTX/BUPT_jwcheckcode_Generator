@@ -86,7 +86,7 @@ async function startScanning() {
                     
                     if (response.ok && data.status === 'success') {
                         // 扫描成功，跳转到生成页面
-                        updateStatus('跳转到生成页面...', 'success');
+                        updateStatus('等待跳转...', 'success');
                         setTimeout(() => {
                             window.location.href = data.message; // data.message 包含跳转 URL
                         }, 1000);

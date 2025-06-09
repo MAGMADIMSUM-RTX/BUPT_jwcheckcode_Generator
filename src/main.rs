@@ -31,6 +31,28 @@ struct QrDataResponse {
     content: String,
 }
 
+#[derive(Serialize)]
+struct ClassInfo {
+    class_lesson_id: String,
+    class_name: String,    // 课程名称
+    id: String,
+    site_id: String,
+    scan_timestamp: String,
+    is_expired: bool,
+    time_remaining: i64,  // 剩余时间（秒）
+}
+
+#[derive(Serialize)]
+struct ClassListResponse {
+    classes: Vec<ClassInfo>,
+}
+
+#[derive(Serialize)]
+struct ClassNameResponse {
+    class_lesson_id: String,
+    class_name: String,
+}
+
 // 扫描的二维码数据结构
 #[derive(Debug, Clone)]
 struct ScannedData {
@@ -61,9 +83,24 @@ impl Default for ScannedData {
 
 type AppState = Arc<Mutex<AppData>>;
 
+// 根据class_lesson_id获取课程名称的函数
+fn get_class_name(class_lesson_id: &str) -> String {
+    // 这里可以根据实际需求实现课程名称查找逻辑
+    // 目前使用简单的映射作为示例，实际项目中可能需要查询数据库
+    match class_lesson_id {
+        "1929761676865687554" => "2023211208-光纤通信".to_string(),
+        _ => "unkown".to_string(), // 默认课程名称
+    }
+}
+
 // 扫描页面 (根路径)
 async fn scan_page() -> Result<NamedFile> {
     Ok(NamedFile::open("./static/scan.html")?)
+}
+
+// 选择器页面
+async fn selector_page() -> Result<NamedFile> {
+    Ok(NamedFile::open("./static/selector.html")?)
 }
 
 // 生成页面
@@ -283,6 +320,59 @@ async fn get_qr_data(path: web::Path<String>, app_state: web::Data<AppState>) ->
     Ok(HttpResponse::Ok().json(response))
 }
 
+// 获取所有有效的课程列表
+async fn get_class_list(app_state: web::Data<AppState>) -> Result<HttpResponse> {
+    let app_data = app_state.lock().unwrap();
+    let current_time = Utc::now();
+    
+    let mut classes: Vec<ClassInfo> = Vec::new();
+    
+    for (class_lesson_id, scanned_data) in &app_data.scanned_data {
+        let elapsed = current_time - scanned_data.scan_timestamp;
+        let is_expired = elapsed > chrono::Duration::minutes(45);
+        let time_remaining = if is_expired {
+            0
+        } else {
+            let remaining_duration = chrono::Duration::minutes(45) - elapsed;
+            remaining_duration.num_seconds().max(0)
+        };
+        
+        let class_info = ClassInfo {
+            class_lesson_id: class_lesson_id.clone(),
+            class_name: get_class_name(class_lesson_id),
+            id: scanned_data.id.clone(),
+            site_id: scanned_data.site_id.clone(),
+            scan_timestamp: scanned_data.scan_timestamp.format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+            is_expired,
+            time_remaining,
+        };
+        
+        classes.push(class_info);
+    }
+    
+    // 按扫描时间排序（最新的在前）
+    classes.sort_by(|a, b| b.scan_timestamp.cmp(&a.scan_timestamp));
+    
+    let response = ClassListResponse {
+        classes,
+    };
+    
+    Ok(HttpResponse::Ok().json(response))
+}
+
+// 根据class_lesson_id获取课程名称
+async fn get_class_name_api(path: web::Path<String>) -> Result<HttpResponse> {
+    let class_lesson_id = path.into_inner();
+    let class_name = get_class_name(&class_lesson_id);
+    
+    let response = ClassNameResponse {
+        class_lesson_id,
+        class_name,
+    };
+    
+    Ok(HttpResponse::Ok().json(response))
+}
+
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     env_logger::init();
@@ -304,9 +394,12 @@ async fn main() -> std::io::Result<()> {
             .app_data(app_state.clone())
             .wrap(Logger::default())
             .route("/", web::get().to(scan_page))
+            .route("/selector", web::get().to(selector_page))
             .route("/gencode/{type}/{content}", web::get().to(generate_page))
             .route("/api/qr-code", web::post().to(submit_qr_code))
             .route("/api/qr-data/{class_lesson_id}", web::get().to(get_qr_data))
+            .route("/api/class-list", web::get().to(get_class_list))
+            .route("/api/class-name/{class_lesson_id}", web::get().to(get_class_name_api))
             .service(Files::new("/static", "./static").show_files_listing())
     })
     .bind(format!("0.0.0.0:{}", port))?

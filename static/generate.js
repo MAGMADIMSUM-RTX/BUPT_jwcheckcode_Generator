@@ -4,6 +4,8 @@ const qrStatus = document.getElementById('qrStatus');
 const generateBtn = document.getElementById('generateBtn');
 const copyLinkBtn = document.getElementById('copyLinkBtn');
 const backBtn = document.getElementById('backBtn');
+const courseName = document.getElementById('courseName');
+const courseId = document.getElementById('courseId');
 
 // 自动刷新相关变量
 let autoRefreshInterval = null;
@@ -20,6 +22,9 @@ async function initializeApp() {
     if (pathParts.length >= 4 && pathParts[1] === 'gencode' && pathParts[2] === 'classid') {
         const classLessonId = pathParts[3];
         
+        // 加载课程名称
+        await loadCourseName(classLessonId);
+        
         // 自动生成二维码
         await generateQRCode(classLessonId);
         
@@ -35,6 +40,26 @@ async function initializeApp() {
         setTimeout(() => {
             window.location.href = '/';
         }, 2000);
+    }
+}
+
+// 加载课程名称
+async function loadCourseName(classLessonId) {
+    try {
+        const response = await fetch(`/api/class-name/${classLessonId}`);
+        const data = await response.json();
+        
+        if (response.ok && data.class_name) {
+            courseName.textContent = data.class_name;
+            courseId.textContent = `课程ID: ${classLessonId}`;
+        } else {
+            courseName.textContent = `课程${classLessonId}`;
+            courseId.textContent = `课程ID: ${classLessonId}`;
+        }
+    } catch (error) {
+        console.error('获取课程名称失败:', error);
+        courseName.textContent = `课程${classLessonId}`;
+        courseId.textContent = `课程ID: ${classLessonId}`;
     }
 }
 

@@ -13,7 +13,29 @@ body {
     justify-content: center;
     padding: 10px;
     margin: 0;
+}
+
+/* 扫描页面容器 */
+.scan-container {
+    background: #111;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 400px;
+    width: 100%;
+    text-align: center;
     overflow: hidden;
+}
+
+/* 选择器页面容器 */
+.selector-page .container {
+    background: #111;
+    border-radius: 12px;
+    padding: 20px;
+    max-width: 800px;
+    width: 100%;
+    text-align: center;
+    max-height: 90vh;
+    overflow-y: auto;
 }
 
 .container {
@@ -277,6 +299,100 @@ button:disabled {
     text-align: center;
     color: #ccc;
     font-size: 14px;
+}
+
+/* 数据库课程列表样式 */
+#allCoursesSection {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #333;
+}
+
+#allCoursesSection h3 {
+    color: #4CAF50;
+    margin-bottom: 15px;
+    font-size: 1.2em;
+}
+
+.courses-list {
+    max-height: 300px;
+    overflow-y: auto;
+    padding: 0 5px;
+}
+
+.course-item {
+    background: #1a1a1a;
+    border-radius: 8px;
+    padding: 12px;
+    margin-bottom: 10px;
+    border: 1px solid #333;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s ease;
+}
+
+.course-item:hover {
+    background: #222;
+    border-color: #4CAF50;
+}
+
+.course-item .course-info {
+    background: none;
+    border: none;
+    padding: 0;
+    margin: 0;
+    text-align: left;
+    flex-grow: 1;
+}
+
+.course-item .course-info h4 {
+    color: #fff;
+    font-size: 1em;
+    margin-bottom: 3px;
+    font-weight: 500;
+}
+
+.course-item .course-info p {
+    color: #888;
+    font-size: 0.8em;
+    margin-bottom: 2px;
+}
+
+.course-item .generate-btn {
+    background: #4CAF50;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 0.8em;
+    transition: background 0.2s ease;
+    margin-left: 10px;
+    flex-shrink: 0;
+}
+
+.course-item .generate-btn:hover {
+    background: #45a049;
+}
+
+/* 滚动条样式 */
+.courses-list::-webkit-scrollbar {
+    width: 6px;
+}
+
+.courses-list::-webkit-scrollbar-track {
+    background: #1a1a1a;
+    border-radius: 3px;
+}
+
+.courses-list::-webkit-scrollbar-thumb {
+    background: #4CAF50;
+    border-radius: 3px;
+}
+
+.courses-list::-webkit-scrollbar-thumb:hover {
+    background: #45a049;
 }
 
 @media (max-width: 768px) {

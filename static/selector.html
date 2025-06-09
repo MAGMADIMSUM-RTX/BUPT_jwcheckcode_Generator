@@ -39,6 +39,13 @@
             border-color: #dc3545;
             background: #fff5f5;
             cursor: not-allowed;
+            pointer-events: none;
+        }
+
+        .class-item.expired:hover {
+            transform: none;
+            border-color: #dc3545;
+            background: #fff5f5;
         }
 
         .class-info {
@@ -67,11 +74,13 @@
         .status-active {
             background: #d4edda;
             color: #155724;
+            border: 1px solid #c3e6cb;
         }
 
         .status-expired {
-            background: #f8d7da;
-            color: #721c24;
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
         }
 
         .empty-state {
@@ -114,7 +123,7 @@
         }
     </style>
 </head>
-<body>
+<body class="selector-page">
     <div class="container">
         <h1>选择二维码课程</h1>
         

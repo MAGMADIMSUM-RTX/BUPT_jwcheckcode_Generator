@@ -56,8 +56,56 @@ impl Default for LastScannedData {
 
 type AppState = Arc<Mutex<LastScannedData>>;
 
-async fn index() -> Result<NamedFile> {
-    Ok(NamedFile::open("./static/index.html")?)
+// 扫描页面 (根路径)
+async fn scan_page() -> Result<NamedFile> {
+    Ok(NamedFile::open("./static/scan.html")?)
+}
+
+// 生成页面
+async fn generate_page(path: web::Path<(String, String)>, app_state: web::Data<AppState>) -> Result<HttpResponse> {
+    let (type_param, content) = path.into_inner();
+    
+    // 目前只支持 classid 类型
+    if type_param != "classid" {
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/"))
+            .finish());
+    }
+    
+    let class_lesson_id = content;
+    
+    // 检查是否有对应class_lesson_id的扫描数据
+    let last_scanned_data = app_state.lock().unwrap();
+    
+    if !last_scanned_data.has_scanned || last_scanned_data.class_lesson_id != class_lesson_id {
+        // 没有对应的扫描数据，重定向到扫描页面
+        return Ok(HttpResponse::Found()
+            .append_header(("Location", "/"))
+            .finish());
+    }
+    
+    // 检查扫描时间是否超过10分钟
+    if let Some(scan_time) = last_scanned_data.scan_timestamp {
+        let current_time = Utc::now();
+        let elapsed = current_time - scan_time;
+        
+        if elapsed > chrono::Duration::minutes(10) {
+            // 二维码已过期，重定向到扫描页面
+            return Ok(HttpResponse::Found()
+                .append_header(("Location", "/"))
+                .finish());
+        }
+    }
+    
+    drop(last_scanned_data);
+    
+    // 返回生成页面
+    match std::fs::read_to_string("./static/generate.html") {
+        Ok(content) => Ok(HttpResponse::Ok().content_type("text/html").body(content)),
+        Err(_) => Ok(HttpResponse::Found()
+            .append_header(("Location", "/"))
+            .finish())
+    }
 }
 
 async fn submit_qr_code(data: web::Json<QrCodeData>, app_state: web::Data<AppState>) -> Result<HttpResponse> {
@@ -92,9 +140,7 @@ async fn submit_qr_code(data: web::Json<QrCodeData>, app_state: web::Data<AppSta
         
         let response = ApiResponse {
             status: "success".to_string(),
-            // message: format!("成功解析签名码 - ID: {}, 站点ID: {}, 创建时间: {}, 课程ID: {}", 
-            //     signing_code.id, signing_code.site_id, signing_code.create_time, signing_code.class_lesson_id),
-            message: "扫描成功".to_string(),
+            message: format!("/gencode/classid/{}", signing_code.class_lesson_id),
         };
         
         Ok(HttpResponse::Ok().json(response))
@@ -252,7 +298,8 @@ async fn main() -> std::io::Result<()> {
         App::new()
             .app_data(app_state.clone())
             .wrap(Logger::default())
-            .route("/", web::get().to(index))
+            .route("/", web::get().to(scan_page))
+            .route("/gencode/{type}/{content}", web::get().to(generate_page))
             .route("/api/qr-code", web::post().to(submit_qr_code))
             .route("/api/qr-data", web::get().to(get_qr_data))
             .service(Files::new("/static", "./static").show_files_listing())

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>二维码扫描器</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+</head>
+<body>
+    <div class="container">
+        <h2>扫描二维码</h2>
+        
+        <!-- 扫描器 -->
+        <div class="camera-container">
+            <video id="video" autoplay playsinline></video>
+            <div class="scanner-overlay"></div>
+            <div class="zoom-controls">
+                <button id="zoomOutBtn" disabled>-</button>
+                <span id="zoomLevel">1x</span>
+                <button id="zoomInBtn" disabled>+</button>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button id="startBtn">开始扫描</button>
+            <button id="stopBtn" disabled>停止扫描</button>
+        </div>
+
+        <div id="status" class="status">
+            点击开始扫描
+        </div>
+    </div>
+
+    <!-- 引入 QR Code 扫描库 -->
+    <script src="https://unpkg.com/@zxing/library@latest/umd/index.min.js"></script>
+    <script src="/static/scan.js"></script>
+</body>
+</html>

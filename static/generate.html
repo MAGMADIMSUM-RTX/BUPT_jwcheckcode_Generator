@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>生成二维码</title>
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="shortcut icon" href="/static/favicon.ico">
+</head>
+<body>
+    <div class="container">
+        <h2>生成二维码</h2>
+        
+        <div class="qr-generator">
+            <div class="qr-code-container">
+                <img id="qrCodeImage" src="" alt="生成的二维码" title="二维码" style="display: none;" />
+                <div id="qrCodeLoading" class="loading">自动生成中...</div>
+            </div>
+            <div class="qr-controls">
+                <button id="generateBtn">手动刷新</button>
+                <button id="copyLinkBtn">复制链接</button>
+                <button id="backBtn">返回扫描</button>
+            </div>
+            <div class="qr-status">
+                <span id="qrStatus">进入此页面将自动生成二维码</span>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/generate.js"></script>
+</body>
+</html>

@@ -34,8 +34,39 @@ pub async fn start_server() -> std::io::Result<()> {
         .expect("Failed to initialize database");
     
     // 初始化应用状态
-    let app_data = AppData::new(db_pool);
+    let app_data = AppData::new(db_pool.clone());
     let app_state = web::Data::new(Arc::new(Mutex::new(app_data)));
+    
+    // 启动后台缓存清理任务
+    let app_state_for_cleanup = app_state.clone();
+    tokio::spawn(async move {
+        let mut interval = tokio::time::interval(tokio::time::Duration::from_secs(300)); // 每5分钟清理一次
+        loop {
+            interval.tick().await;
+            
+            let pool = {
+                let app_data = app_state_for_cleanup.lock().unwrap();
+                app_data.db_pool.clone()
+            };
+            
+            if cfg!(debug_assertions) {
+                println!("[后台任务] 开始定期清理过期缓存");
+            }
+            
+            // 创建临时缓存来进行清理操作
+            let mut temp_cache = crate::models::CourseCache::new();
+            if let Err(e) = crate::database::cleanup_expired_cache_and_db(&pool, &mut temp_cache).await {
+                eprintln!("后台清理缓存失败: {}", e);
+            } else {
+                // 清理成功后，更新主缓存
+                let mut app_data = app_state_for_cleanup.lock().unwrap();
+                let removed_ids = app_data.course_cache.cleanup_expired(5, 20); // 5分钟缓存，20分钟课程过期
+                if !removed_ids.is_empty() && cfg!(debug_assertions) {
+                    println!("[后台任务] 清理了{}个过期缓存条目", removed_ids.len());
+                }
+            }
+        }
+    });
     
     // 根据编译模式选择端口
     let port = if cfg!(debug_assertions) {

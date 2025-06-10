@@ -1,8 +1,7 @@
 use actix_web::{web, HttpResponse, Result};
-use chrono::Utc;
 
 use crate::models::*;
-use crate::database::{get_class_name_from_db, save_scan_info, is_cache_valid, check_and_update_expired_courses};
+use crate::database::{get_class_name_from_db, save_scan_info, check_and_update_expired_courses};
 use crate::qr_parser::QrCodeParser;
 use crate::time_utils::TimeProcessor;
 use crate::handlers::pages::AppState;
@@ -34,7 +33,18 @@ pub async fn submit_qr_code(
         // 清除缓存，强制下次从数据库重新加载
         {
             let mut app_data = app_state.lock().unwrap();
-            app_data.class_cache = None;
+            
+            // 清理当前课程的缓存
+            app_data.course_cache.remove(&signing_code.class_lesson_id);
+            
+            // 在后台任务中进行更深度的缓存清理
+            let pool_for_cleanup = app_data.db_pool.clone();
+            tokio::spawn(async move {
+                let mut temp_cache = crate::models::CourseCache::new();
+                if let Err(e) = crate::database::cleanup_expired_cache_and_db(&pool_for_cleanup, &mut temp_cache).await {
+                    eprintln!("后台清理缓存失败: {}", e);
+                }
+            });
         }
         
         let response = ApiResponse {
@@ -230,32 +240,17 @@ pub async fn get_class_name_api(
 
 /// 获取所有数据库中的课程列表（用于选择器页面）
 pub async fn get_all_courses(app_state: web::Data<AppState>) -> Result<HttpResponse> {
-    // 先检查缓存，如果有效则直接返回
+    // 先进行缓存清理
     {
-        let app_data = app_state.lock().unwrap();
-        if let Some(ref cache_entry) = app_data.class_cache {
-            if is_cache_valid(cache_entry) {
-                println!("使用缓存的课程数据");
-                let course_list: Vec<_> = cache_entry.classes.iter().map(|class| {
-                    serde_json::json!({
-                        "class_lesson_id": class.class_lesson_id,
-                        "lesson_name": class.lesson_name,
-                        "last_check_id": class.last_check_id,
-                        "last_site_id": class.last_site_id,
-                        "last_create_time": class.last_create_time,
-                        "is_expired": class.is_expired
-                    })
-                }).collect();
-                
-                return Ok(HttpResponse::Ok().json(serde_json::json!({
-                    "status": "success",
-                    "courses": course_list
-                })));
-            }
+        let mut app_data = app_state.lock().unwrap();
+        let pool = app_data.db_pool.clone();
+        // 清理过期缓存
+        if let Err(e) = crate::database::cleanup_expired_cache_and_db(&pool, &mut app_data.course_cache).await {
+            eprintln!("清理缓存失败: {}", e);
         }
     }
     
-    // 缓存无效或不存在，从数据库加载并检查过期状态
+    // 从数据库加载并检查过期状态
     let db_pool = {
         let app_data = app_state.lock().unwrap();
         app_data.db_pool.clone()
@@ -264,13 +259,12 @@ pub async fn get_all_courses(app_state: web::Data<AppState>) -> Result<HttpRespo
     // 检查并更新所有课程的过期状态
     match check_and_update_expired_courses(&db_pool).await {
         Ok(classes) => {
-            // 更新缓存
+            // 将课程加载到缓存中
             {
                 let mut app_data = app_state.lock().unwrap();
-                app_data.class_cache = Some(ClassCacheEntry {
-                    classes: classes.clone(),
-                    cached_at: Utc::now(),
-                });
+                for class in &classes {
+                    app_data.course_cache.insert(class.clone());
+                }
                 println!("从数据库加载课程数据到缓存，并已检查过期状态");
             }
             

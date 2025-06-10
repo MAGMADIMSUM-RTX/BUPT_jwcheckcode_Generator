@@ -1,7 +1,7 @@
 use sqlx::SqlitePool;
-use crate::models::{DbClass, SigningCode, ClassCacheEntry};
+use crate::models::{DbClass, SigningCode};
 use std::io::Write;
-use chrono::{Utc, Duration, FixedOffset};
+use chrono::{Utc, FixedOffset};
 
 /// 缓存有效期（5分钟）
 const CACHE_DURATION_MINUTES: i64 = 5;
@@ -9,8 +9,16 @@ const CACHE_DURATION_MINUTES: i64 = 5;
 /// 课程过期时间（20分钟）
 const COURSE_EXPIRY_MINUTES: i64 = 20;
 
+/// 调试模式下打印数据库操作日志
+fn log_db_operation(operation: &str, details: &str) {
+    if cfg!(debug_assertions) {
+        println!("[DB DEBUG] {}: {}", operation, details);
+    }
+}
+
 /// 从数据库获取课程名称
 pub async fn get_class_name_from_db(pool: &SqlitePool, class_lesson_id: &str) -> String {
+    log_db_operation("SELECT", &format!("查询课程名称，class_lesson_id={}", class_lesson_id));
     
     let result = sqlx::query_as::<_, DbClass>(
         "SELECT * FROM classes WHERE class_lesson_id = ? LIMIT 1"
@@ -20,8 +28,18 @@ pub async fn get_class_name_from_db(pool: &SqlitePool, class_lesson_id: &str) ->
     .await;
 
     match result {
-        Ok(Some(class)) => class.lesson_name,
-        _ => "unknown".to_string(),
+        Ok(Some(class)) => {
+            log_db_operation("SELECT", &format!("找到课程: {}", class.lesson_name));
+            class.lesson_name
+        },
+        Ok(None) => {
+            log_db_operation("SELECT", &format!("未找到课程，class_lesson_id={}", class_lesson_id));
+            "unknown".to_string()
+        },
+        Err(e) => {
+            log_db_operation("SELECT ERROR", &format!("查询失败: {}", e));
+            "unknown".to_string()
+        }
     }
 }
 
@@ -34,6 +52,8 @@ pub async fn upsert_class_to_db(
     site_id: &str,
     create_time: &str,
 ) -> Result<(), sqlx::Error> {
+    log_db_operation("UPSERT", &format!("课程信息: class_lesson_id={}, lesson_name={}", class_lesson_id, lesson_name));
+    
     let existing_record = sqlx::query_as::<_, DbClass>(
         "SELECT * FROM classes WHERE class_lesson_id = ? LIMIT 1"
     )
@@ -43,6 +63,7 @@ pub async fn upsert_class_to_db(
     
     match existing_record {
         Some(_) => {
+            log_db_operation("UPDATE", &format!("更新现有课程记录: {}", class_lesson_id));
             // 更新现有记录
             sqlx::query(
                 r#"
@@ -60,6 +81,7 @@ pub async fn upsert_class_to_db(
             .await?;
         }
         None => {
+            log_db_operation("INSERT", &format!("插入新课程记录: {}", class_lesson_id));
             // 插入新记录
             sqlx::query(
                 r#"
@@ -77,6 +99,7 @@ pub async fn upsert_class_to_db(
         }
     }
 
+    log_db_operation("UPSERT", &format!("课程信息保存成功: {}", class_lesson_id));
     Ok(())
 }
 
@@ -163,21 +186,18 @@ pub async fn save_scan_info(
 
 /// 从数据库获取所有课程列表
 pub async fn get_all_classes_from_db(pool: &SqlitePool) -> Result<Vec<DbClass>, sqlx::Error> {
+    log_db_operation("SELECT", "获取所有课程列表");
+    
     let classes = sqlx::query_as::<_, DbClass>(
         "SELECT * FROM classes ORDER BY lesson_name"
     )
     .fetch_all(pool)
     .await?;
     
+    log_db_operation("SELECT", &format!("获取到{}条课程记录", classes.len()));
     Ok(classes)
 }
 
-/// 检查缓存是否有效
-pub fn is_cache_valid(cache_entry: &ClassCacheEntry) -> bool {
-    let now = Utc::now();
-    let cache_age = now.signed_duration_since(cache_entry.cached_at);
-    cache_age < Duration::minutes(CACHE_DURATION_MINUTES)
-}
 
 /// 更新课程的过期状态
 pub async fn update_course_expired_status(
@@ -185,6 +205,8 @@ pub async fn update_course_expired_status(
     class_lesson_id: &str, 
     is_expired: bool
 ) -> Result<(), sqlx::Error> {
+    log_db_operation("UPDATE", &format!("更新课程{}过期状态为: {}", class_lesson_id, is_expired));
+    
     sqlx::query(
         "UPDATE classes SET is_expired = ? WHERE class_lesson_id = ?"
     )
@@ -193,6 +215,7 @@ pub async fn update_course_expired_status(
     .execute(pool)
     .await?;
     
+    log_db_operation("UPDATE", &format!("课程{}过期状态更新成功", class_lesson_id));
     Ok(())
 }
 
@@ -215,32 +238,45 @@ pub async fn check_and_update_expired_courses(
         if let Some(ref last_create_time) = class.last_create_time {
             println!("检查课程 {} 的过期状态，创建时间: {}", class.class_lesson_id, last_create_time);
             
+            // 标准化时间格式 - 处理单位数的月份和日期
+            let normalized_time = if last_create_time.contains('T') {
+                // 处理 "2025-06-9T21:30:04.003" 格式，需要补零
+                let parts: Vec<&str> = last_create_time.split('T').collect();
+                if parts.len() == 2 {
+                    let date_parts: Vec<&str> = parts[0].split('-').collect();
+                    if date_parts.len() == 3 {
+                        let year = date_parts[0];
+                        let month = if date_parts[1].len() == 1 { format!("0{}", date_parts[1]) } else { date_parts[1].to_string() };
+                        let day = if date_parts[2].len() == 1 { format!("0{}", date_parts[2]) } else { date_parts[2].to_string() };
+                        format!("{}-{}-{}T{}", year, month, day, parts[1])
+                    } else {
+                        last_create_time.to_string()
+                    }
+                } else {
+                    last_create_time.to_string()
+                }
+            } else {
+                last_create_time.to_string()
+            };
+            
             // 尝试多种时间格式解析
-            let create_time_result = if last_create_time.ends_with('Z') {
+            let create_time_result = if normalized_time.ends_with('Z') {
                 // 标准 RFC3339 格式，如 "2025-06-09T20:30:04.003Z"
-                chrono::DateTime::parse_from_rfc3339(last_create_time)
-            } else if last_create_time.contains('+') {
+                chrono::DateTime::parse_from_rfc3339(&normalized_time)
+            } else if normalized_time.contains('+') {
                 // 带时区偏移的格式，如 "2025-06-09T20:30:04.003+08:00"
-                chrono::DateTime::parse_from_rfc3339(last_create_time)
-            } else if last_create_time.contains('T') {
+                chrono::DateTime::parse_from_rfc3339(&normalized_time)
+            } else if normalized_time.contains('T') {
                 // ISO 格式但没有时区，如 "2025-06-09T20:30:04.003"
                 // 假设为北京时间，添加 +08:00 后缀
-                let time_with_tz = if last_create_time.len() == 23 {
-                    // 处理毫秒格式 "2025-06-09T20:30:04.003"
-                    format!("{}+08:00", last_create_time)
-                } else if last_create_time.len() == 19 {
-                    // 处理秒格式 "2025-06-09T20:30:04"
-                    format!("{}+08:00", last_create_time)
-                } else {
-                    format!("{}+08:00", last_create_time)
-                };
+                let time_with_tz = format!("{}+08:00", normalized_time);
                 chrono::DateTime::parse_from_rfc3339(&time_with_tz)
             } else {
                 // 其他格式，如 "2025-06-09 20:30:04"
-                let time_with_tz = if last_create_time.contains(' ') {
-                    format!("{}Z", last_create_time.replace(' ', "T"))
+                let time_with_tz = if normalized_time.contains(' ') {
+                    format!("{}Z", normalized_time.replace(' ', "T"))
                 } else {
-                    format!("{}Z", last_create_time)
+                    format!("{}Z", normalized_time)
                 };
                 chrono::DateTime::parse_from_rfc3339(&time_with_tz)
             };
@@ -283,4 +319,60 @@ pub async fn check_and_update_expired_courses(
     }
     
     Ok(classes)
+}
+
+
+
+/// 清理过期的缓存条目并更新数据库中的过期状态
+pub async fn cleanup_expired_cache_and_db(
+    pool: &SqlitePool,
+    course_cache: &mut crate::models::CourseCache,
+) -> Result<(), sqlx::Error> {
+    log_db_operation("CACHE CLEANUP", "开始清理过期缓存和更新数据库");
+    
+    let removed_ids = course_cache.cleanup_expired(CACHE_DURATION_MINUTES, COURSE_EXPIRY_MINUTES);
+    
+    for class_id in &removed_ids {
+        // 将数据库中对应的课程标记为过期
+        if let Err(e) = update_course_expired_status(pool, class_id, true).await {
+            log_db_operation("UPDATE ERROR", &format!("更新课程{}过期状态失败: {}", class_id, e));
+        } else {
+            log_db_operation("CACHE REMOVE", &format!("课程{}已从缓存中移除并标记为过期", class_id));
+        }
+    }
+    
+    if !removed_ids.is_empty() {
+        log_db_operation("CACHE CLEANUP", &format!("清理完成，移除{}个过期缓存条目", removed_ids.len()));
+    }
+    
+    Ok(())
+}
+
+/// 预加载即将过期的课程到缓存中
+pub async fn preload_courses_to_cache(
+    pool: &SqlitePool,
+    course_cache: &mut crate::models::CourseCache,
+) -> Result<(), sqlx::Error> {
+    log_db_operation("CACHE PRELOAD", "开始预加载课程到缓存");
+    
+    // 获取所有未过期且有最近活动的课程
+    let courses = sqlx::query_as::<_, DbClass>(
+        r#"
+        SELECT * FROM classes 
+        WHERE is_expired = 0 
+        AND last_create_time IS NOT NULL 
+        AND datetime(last_create_time) > datetime('now', '-1 hour')
+        ORDER BY last_create_time DESC
+        LIMIT 20
+        "#
+    )
+    .fetch_all(pool)
+    .await?;
+    
+    for course in courses {
+        course_cache.insert(course.clone());
+    }
+    
+    log_db_operation("CACHE PRELOAD", &format!("预加载完成，加载了{}个课程到缓存", course_cache.classes.len()));
+    Ok(())
 }

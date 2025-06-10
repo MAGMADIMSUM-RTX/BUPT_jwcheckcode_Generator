@@ -1,4 +1,5 @@
 const qrCodeImage = document.getElementById('qrCodeImage');
+const qrCodeImageOld = document.getElementById('qrCodeImageOld');
 const qrCodeLoading = document.getElementById('qrCodeLoading');
 const qrStatus = document.getElementById('qrStatus');
 const generateBtn = document.getElementById('generateBtn');
@@ -51,15 +52,13 @@ async function loadCourseName(classLessonId) {
         
         if (response.ok && data.class_name) {
             courseName.textContent = data.class_name;
-            courseId.textContent = `课程ID: ${classLessonId}`;
+            // courseId.textContent = `课程ID: ${classLessonId}`;
         } else {
             courseName.textContent = `课程${classLessonId}`;
-            courseId.textContent = `课程ID: ${classLessonId}`;
         }
     } catch (error) {
         console.error('获取课程名称失败:', error);
         courseName.textContent = `课程${classLessonId}`;
-        courseId.textContent = `课程ID: ${classLessonId}`;
     }
 }
 
@@ -77,10 +76,39 @@ async function generateQRCode(classLessonId) {
             // 生成二维码图片
             const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(data.content)}`;
             
-            qrCodeImage.src = qrUrl;
-            qrCodeImage.style.display = 'block';
-            hideLoading();
-            updateQRStatus('二维码生成成功', 'success');
+            // 加载新图像
+            const newImage = new Image();
+            newImage.onload = function() {
+                // 只有在新图像加载成功后才进行切换
+                // 将当前图像移动到旧图像位置（如果存在）
+                if (qrCodeImage.src && qrCodeImage.style.display !== 'none') {
+                    qrCodeImageOld.src = qrCodeImage.src;
+                    qrCodeImageOld.style.display = 'block';
+                    qrCodeImageOld.style.opacity = '0.8';
+                }
+                
+                // 显示新图像
+                qrCodeImage.src = qrUrl;
+                qrCodeImage.style.display = 'block';
+                qrCodeImage.style.opacity = '1';
+                hideLoading();
+                updateQRStatus('二维码生成成功', 'success');
+                
+                // 500毫秒后开始淡出旧图像，1秒后完全隐藏
+                setTimeout(() => {
+                    if (qrCodeImageOld.style.display !== 'none') {
+                        qrCodeImageOld.style.opacity = '0';
+                        setTimeout(() => {
+                            qrCodeImageOld.style.display = 'none';
+                        }, 300);
+                    }
+                }, 500);
+            };
+            newImage.onerror = function() {
+                hideLoading();
+                updateQRStatus('图像加载失败', 'error');
+            };
+            newImage.src = qrUrl;
         } else {
             hideLoading();
             updateQRStatus(data.message || '生成失败', 'error');
@@ -102,8 +130,15 @@ async function generateQRCode(classLessonId) {
 }
 
 function showLoading() {
-    qrCodeLoading.style.display = 'block';
-    qrCodeImage.style.display = 'none';
+    // 如果当前已有二维码图片，则保持显示，不显示loading文字
+    if (qrCodeImage.src && qrCodeImage.style.display !== 'none') {
+        // 保持当前二维码显示，不显示loading
+        qrCodeLoading.style.display = 'none';
+    } else {
+        // 只有在没有二维码图片时才显示loading文字
+        qrCodeLoading.style.display = 'block';
+        qrCodeImage.style.display = 'none';
+    }
 }
 
 function hideLoading() {

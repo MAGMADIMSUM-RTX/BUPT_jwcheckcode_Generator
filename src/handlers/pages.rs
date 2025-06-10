@@ -1,10 +1,9 @@
 use actix_web::{web, HttpResponse, Result};
 use actix_files::NamedFile;
-use chrono::Utc;
 use std::sync::{Arc, Mutex};
 
 use crate::models::*;
-use crate::database::{get_all_classes_from_db, is_cache_valid, check_and_update_expired_courses};
+use crate::database::check_and_update_expired_courses;
 
 pub type AppState = Arc<Mutex<AppData>>;
 
@@ -17,26 +16,19 @@ pub async fn scan_page() -> Result<NamedFile> {
 pub async fn selector_page(app_state: web::Data<AppState>) -> Result<NamedFile> {
     // 预加载课程数据到缓存（在访问选择器页面时触发）
     {
-        let app_data = app_state.lock().unwrap();
-        let should_load_cache = if let Some(ref cache_entry) = app_data.class_cache {
-            !is_cache_valid(cache_entry)
-        } else {
-            true
-        };
+        let mut app_data = app_state.lock().unwrap();
+        let db_pool = app_data.db_pool.clone();
         
-        if should_load_cache {
-            let db_pool = app_data.db_pool.clone();
-            drop(app_data);
-            
-            // 异步加载课程数据到缓存
-            if let Ok(classes) = get_all_classes_from_db(&db_pool).await {
-                let mut app_data = app_state.lock().unwrap();
-                app_data.class_cache = Some(ClassCacheEntry {
-                    classes,
-                    cached_at: Utc::now(),
-                });
-                println!("选择器页面访问时预加载课程数据到缓存");
-            }
+        // 清理过期缓存
+        if let Err(e) = crate::database::cleanup_expired_cache_and_db(&db_pool, &mut app_data.course_cache).await {
+            eprintln!("清理缓存失败: {}", e);
+        }
+        
+        // 预加载课程到缓存
+        if let Err(e) = crate::database::preload_courses_to_cache(&db_pool, &mut app_data.course_cache).await {
+            eprintln!("预加载课程到缓存失败: {}", e);
+        } else {
+            println!("选择器页面访问时预加载课程数据到缓存");
         }
     }
     
@@ -59,28 +51,19 @@ pub async fn generate_page(
     
     let class_lesson_id = content;
     
-    // 预加载课程数据到缓存（在访问生成页面时触发）
+    // 预加载课程数据到缓存并清理过期缓存
     {
-        let app_data = app_state.lock().unwrap();
-        let should_load_cache = if let Some(ref cache_entry) = app_data.class_cache {
-            !is_cache_valid(cache_entry)
-        } else {
-            true
-        };
+        let mut app_data = app_state.lock().unwrap();
+        let db_pool = app_data.db_pool.clone();
         
-        if should_load_cache {
-            let db_pool = app_data.db_pool.clone();
-            drop(app_data);
-            
-            // 异步加载课程数据到缓存
-            if let Ok(classes) = get_all_classes_from_db(&db_pool).await {
-                let mut app_data = app_state.lock().unwrap();
-                app_data.class_cache = Some(ClassCacheEntry {
-                    classes,
-                    cached_at: Utc::now(),
-                });
-                println!("生成页面访问时预加载课程数据到缓存");
-            }
+        // 清理过期缓存
+        if let Err(e) = crate::database::cleanup_expired_cache_and_db(&db_pool, &mut app_data.course_cache).await {
+            eprintln!("清理缓存失败: {}", e);
+        }
+        
+        // 预加载课程到缓存
+        if let Err(e) = crate::database::preload_courses_to_cache(&db_pool, &mut app_data.course_cache).await {
+            eprintln!("预加载课程到缓存失败: {}", e);
         }
     }
     

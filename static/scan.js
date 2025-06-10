@@ -11,6 +11,7 @@ let scanning = false;
 let stream = null;
 let currentZoom = 1;
 let track = null;
+let scanningPaused = false;
 
 // 页面加载时初始化
 window.addEventListener('DOMContentLoaded', function() {
@@ -71,7 +72,8 @@ async function startScanning() {
         updateStatus('扫描中...', 'info');
         
         codeReader.decodeFromVideoDevice(null, video, async (result, error) => {
-            if (result) {
+            if (result && !scanningPaused) {
+                scanningPaused = true; // 暂停扫描
                 const qrText = result.getText();
                 updateStatus(`扫描成功！正在处理...`, 'success');
                 
@@ -93,13 +95,19 @@ async function startScanning() {
                     } else {
                         updateStatus(data.message || '二维码格式不正确', 'error');
                         setTimeout(() => {
-                            if (scanning) updateStatus('继续扫描...', 'info');
+                            if (scanning) {
+                                updateStatus('继续扫描...', 'info');
+                                scanningPaused = false; // 2秒后恢复扫描
+                            }
                         }, 2000);
                     }
                 } catch (err) {
                     updateStatus('网络错误', 'error');
                     setTimeout(() => {
-                        if (scanning) updateStatus('继续扫描...', 'info');
+                        if (scanning) {
+                            updateStatus('继续扫描...', 'info');
+                            scanningPaused = false; // 2秒后恢复扫描
+                        }
                     }, 2000);
                 }
             }
@@ -125,6 +133,7 @@ async function startScanning() {
 
 function stopScanning() {
     scanning = false;
+    scanningPaused = false; // 重置扫描暂停状态
     
     if (codeReader) {
         codeReader.reset();
@@ -157,6 +166,7 @@ function enableZoomControls() {
     zoomInBtn.disabled = false;
     zoomOutBtn.disabled = false;
     updateZoomDisplay();
+    updateZoomButtons(capabilities);
 }
 
 function disableZoomControls() {
@@ -170,14 +180,14 @@ function updateZoomDisplay() {
     zoomLevel.textContent = `${currentZoom.toFixed(1)}x`;
 }
 
-async function adjustZoom(factor) {
+async function adjustZoom(step) {
     if (!track || !track.getCapabilities) return;
     
     const capabilities = track.getCapabilities();
     if (!capabilities.zoom) return;
     
     const newZoom = Math.max(capabilities.zoom.min, 
-                            Math.min(capabilities.zoom.max, currentZoom * factor));
+                            Math.min(capabilities.zoom.max, currentZoom + step));
     
     try {
         await track.applyConstraints({
@@ -185,13 +195,23 @@ async function adjustZoom(factor) {
         });
         currentZoom = newZoom;
         updateZoomDisplay();
+        
+        // 更新按钮状态
+        updateZoomButtons(capabilities);
     } catch (err) {
         console.error('缩放调整失败:', err);
     }
 }
 
+function updateZoomButtons(capabilities) {
+    if (!capabilities || !capabilities.zoom) return;
+    
+    zoomInBtn.disabled = currentZoom >= capabilities.zoom.max;
+    zoomOutBtn.disabled = currentZoom <= capabilities.zoom.min;
+}
+
 // 事件监听器
 startBtn.addEventListener('click', startScanning);
 stopBtn.addEventListener('click', stopScanning);
-zoomInBtn.addEventListener('click', () => adjustZoom(1.2));
-zoomOutBtn.addEventListener('click', () => adjustZoom(0.8));
+zoomInBtn.addEventListener('click', () => adjustZoom(1)); // 固定步进 +1
+zoomOutBtn.addEventListener('click', () => adjustZoom(-1)); // 固定步进 -1

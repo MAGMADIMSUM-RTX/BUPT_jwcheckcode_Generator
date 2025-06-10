@@ -1133,7 +1133,7 @@ dependencies = [
 
 [[package]]
 name = "jw_code"
-version = "0.5.0"
+version = "0.5.1"
 dependencies = [
  "actix-files",
  "actix-web",

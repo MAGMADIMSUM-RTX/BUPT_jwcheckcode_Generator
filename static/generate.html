@@ -5,23 +5,24 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <title>生成二维码</title>
+    <title>buptricks</title>
     <link rel="stylesheet" href="/static/style.css">
     <link rel="shortcut icon" href="/static/favicon.ico">
 </head>
 <body>
     <div class="container">
-        <h2>生成二维码</h2>
+        <!-- <h2>二维码生成器</h2> -->
         
         <div class="course-info">
             <h3 id="courseName">加载中...</h3>
-            <p id="courseId"></p>
+            <p id="courseId" style="display: none;"></p>
         </div>
         
         <div class="qr-generator">
             <div class="qr-code-container">
-                <img id="qrCodeImage" src="" alt="生成的二维码" title="二维码" style="display: none;" />
-                <div id="qrCodeLoading" class="loading">自动生成中...</div>
+                <img id="qrCodeImageOld" src="" alt="上一张二维码" title="上一张二维码" class="qr-image-old" style="display: none;" />
+                <img id="qrCodeImage" src="" alt="生成的二维码" title="二维码" class="qr-image-new" style="display: none;" />
+                <div id="qrCodeLoading" class="loading">正在加载二维码...</div>
             </div>
             <div class="qr-controls">
                 <button id="generateBtn">手动刷新</button>

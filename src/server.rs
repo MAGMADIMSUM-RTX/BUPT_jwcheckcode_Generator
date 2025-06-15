@@ -27,9 +27,10 @@ fn configure_routes(cfg: &mut web::ServiceConfig) {
 pub async fn start_server() -> std::io::Result<()> {
     env_logger::init();
     
-    // 初始化数据库连接
-    let database_url = "sqlite:./lessons_data.db";
-    let db_pool = initialize_database(database_url)
+    // 初始化数据库连接 - 支持环境变量配置
+    let database_url = std::env::var("DATABASE_URL")
+        .unwrap_or_else(|_| "sqlite:./lessons_data.db".to_string());
+    let db_pool = initialize_database(&database_url)
         .await
         .expect("Failed to initialize database");
     

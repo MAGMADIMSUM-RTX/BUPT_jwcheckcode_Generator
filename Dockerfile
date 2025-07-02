@@ -1,16 +1,23 @@
+# syntax=docker/dockerfile:1
 FROM ubuntu:latest
 
 WORKDIR /app
 
-COPY target/x86_64-unknown-linux-gnu/release/jw_code ./target/jw_code_amd64
-COPY target/release/jw_code ./target/jw_code_arm64
-COPY static/ ./static/
-COPY lessons_data.db ./lessons_data.db
-COPY entrypoint.sh ./entrypoint.sh
+# 安装依赖
+RUN apt-get update && \
+    apt-get install -y curl build-essential pkg-config libssl-dev && \
+    curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+    . "$HOME/.cargo/env" && \
+    cargo install dioxus-cli
 
-# RUN apt-get update && apt-get install -y ca-certificates && rm -rf /var/lib/apt/lists/* \
-RUN chmod +x ./target/jw_code_amd64 ./target/jw_code_arm64 ./entrypoint.sh
+# 复制源代码
+COPY . /app
 
+# 构建项目
+RUN . "$HOME/.cargo/env" && dx bundle --release
+
+# 暴露端口
 EXPOSE 2233
 
-CMD ["./entrypoint.sh"]
+# 启动服务
+CMD ["/root/.cargo/bin/dx", "serve", "--release", "--addr", "127.0.0.1", "--port", "2233"]

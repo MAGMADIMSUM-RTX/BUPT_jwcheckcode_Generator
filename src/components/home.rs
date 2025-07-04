@@ -40,55 +40,58 @@ pub fn Home() -> Element {
             
 
             move |event: web_sys::Event| {
-                if let Ok(custom_event) = event.dyn_into::<web_sys::CustomEvent>() {
-                    if let Ok(detail) = custom_event.detail().dyn_into::<js_sys::Object>() {
-                        if let Some(data) = js_sys::Reflect::get(&detail, &"data".into()).ok() {
-                            if let Some(qr_data) = data.as_string() {
-                                // 验证二维码内容
-                                if let Some(parsed_code) = parse_signing_code(&qr_data) {
-                                    // 内容正确：停止扫描并跳转到 code 页面
-                                    qr_result.set(qr_data);
-                                    signing_code.set(Some(parsed_code.clone()));
-                                    scanning.set(false);
-                                    unsafe { stop_qr_scanning(); }
-                                    invalid_qr_message.set(String::new());
+                // Use js_sys::Reflect to access custom event properties
+                if let Ok(event_obj) = event.dyn_into::<js_sys::Object>() {
+                    if let Ok(detail) = js_sys::Reflect::get(&event_obj, &"detail".into()) {
+                        if let Ok(detail_obj) = detail.dyn_into::<js_sys::Object>() {
+                            if let Ok(data) = js_sys::Reflect::get(&detail_obj, &"data".into()) {
+                                if let Some(qr_data) = data.as_string() {
+                                    // 验证二维码内容
+                                    if let Some(parsed_code) = parse_signing_code(&qr_data) {
+                                        // 内容正确：停止扫描并跳转到 code 页面
+                                        qr_result.set(qr_data);
+                                        signing_code.set(Some(parsed_code.clone()));
+                                        scanning.set(false);
+                                        stop_qr_scanning();
+                                        invalid_qr_message.set(String::new());
 
-                                    // 异步保存扫码数据
-                                    let mut error_message = error_message.clone();
-                                    let parsed_code_clone = parsed_code.clone();
-                                    
-                                    spawn_local(async move {
-                                        match save_signing_code(parsed_code_clone.clone()).await {
-                                            Ok(message) => {
-                                                web_sys::console::log_1(
-                                                    &format!("保存成功: {}", message).into(),
-                                                );
-                                                
-                                                // 保存成功后跳转到 code 页面
-                                                // 使用 site_id 作为路径参数
-                                                let url = format!("/id/{}", parsed_code_clone.site_id);
-                                                web_sys::console::log_1(&format!("准备跳转到: {}", url).into());
-                                                
-                                                // 使用 web_sys 进行页面跳转，避免 navigator 在异步回调中的问题
-                                                if let Some(window) = web_sys::window() {
-                                                    let location = window.location();
-                                                    if let Err(e) = location.set_href(&url) {
-                                                        web_sys::console::error_1(&format!("跳转失败: {:?}", e).into());
+                                        // 异步保存扫码数据
+                                        let mut error_message = error_message.clone();
+                                        let parsed_code_clone = parsed_code.clone();
+                                        
+                                        spawn_local(async move {
+                                            match save_signing_code(parsed_code_clone.clone()).await {
+                                                Ok(message) => {
+                                                    web_sys::console::log_1(
+                                                        &format!("保存成功: {}", message).into(),
+                                                    );
+                                                    
+                                                    // 保存成功后跳转到 code 页面
+                                                    // 使用 site_id 作为路径参数
+                                                    let url = format!("/id/{}", parsed_code_clone.site_id);
+                                                    web_sys::console::log_1(&format!("准备跳转到: {}", url).into());
+                                                    
+                                                    // 使用 web_sys 进行页面跳转，避免 navigator 在异步回调中的问题
+                                                    if let Some(window) = web_sys::window() {
+                                                        let location = window.location();
+                                                        if let Err(e) = location.set_href(&url) {
+                                                            web_sys::console::error_1(&format!("跳转失败: {:?}", e).into());
+                                                        }
                                                     }
                                                 }
+                                                Err(e) => {
+                                                    error_message.set(format!("保存失败: {:?}", e));
+                                                    web_sys::console::error_1(
+                                                        &format!("保存失败: {:?}", e).into(),
+                                                    );
+                                                }
                                             }
-                                            Err(e) => {
-                                                error_message.set(format!("保存失败: {:?}", e));
-                                                web_sys::console::error_1(
-                                                    &format!("保存失败: {:?}", e).into(),
-                                                );
-                                            }
-                                        }
-                                    });
+                                        });
 
-                                } else {
-                                    // 内容错误：继续扫描，显示无效内容提示
-                                    invalid_qr_message.set(format!("检测到无效格式: {}", qr_data));
+                                    } else {
+                                        // 内容错误：继续扫描，显示无效内容提示
+                                        invalid_qr_message.set(format!("检测到无效格式: {}", qr_data));
+                                    }
                                 }
                             }
                         }

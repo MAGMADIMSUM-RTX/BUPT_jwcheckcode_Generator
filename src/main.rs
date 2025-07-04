@@ -1,12 +1,12 @@
 use dioxus::prelude::*;
 mod components;
-use crate::components::{Home, Navbar, Code, PageNotFound};
+use crate::components::{Code, Home, Navbar, PageNotFound};
 mod models;
 // mod routes;
 
-use crate::utils::{db, signing_code::*, time::*, api::*};
-mod utils;
+use crate::utils::{api::*, db, signing_code::*, time::*};
 mod js_bindings;
+mod utils;
 
 const FAVICON: Asset = asset!("/assets/favicon.ico");
 const MAIN_CSS: Asset = asset!("/assets/main.css");
@@ -14,6 +14,15 @@ const QR_SCANNER_JS: Asset = asset!("/assets/qr-scanner.js");
 const QR_JS: Asset = asset!("/assets/jsQR.js");
 
 fn main() {
+    #[cfg(not(feature = "server"))]
+    {
+        // 从环境变量中获取服务器地址
+        let server_url: &'static str = match std::env::var("SERVER_URL") {
+            Ok(url) => Box::leak(url.into_boxed_str()),
+            Err(_) => "https://server.buptricks.top",
+        };
+        server_fn::client::set_server_url(server_url);
+    }
     dioxus::launch(App);
 }
 

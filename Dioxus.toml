@@ -3,7 +3,7 @@
 [web.app]
 
 # HTML title tag content
-title = "jw_code"
+title = "BUPTricks"
 
 # include `assets` in web platform
 [web.resource]
@@ -19,3 +19,8 @@ script = []
 # Javascript code file
 # serve: [dev-server] only
 script = []
+
+[bundle]
+publisher = "buptricks"
+identifier = "com.buptricks"
+icon = ["assets/favicon.ico"]

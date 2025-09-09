@@ -57,7 +57,7 @@ pub enum Route {
 
 //     // Connect to the IP and PORT env vars passed by the Dioxus CLI (or your dockerfile)
 //     let socket_addr = dioxus::cli_config::fullstack_address_or_localhost();
-
+ 
 //     // Build a custom axum router
 //     let router = axum::Router::new()
 //         .serve_dioxus_application(ServeConfigBuilder::new(), App)

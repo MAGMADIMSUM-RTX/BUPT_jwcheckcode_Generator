@@ -1,0 +1,27 @@
+[Unit]
+Description=JW Dioxus Web Application
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=lc
+Group=lc
+WorkingDirectory=/home/lc/jw
+ExecStart=/usr/bin/dx serve --release
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+Environment=RUST_LOG=info
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/lc/jw
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

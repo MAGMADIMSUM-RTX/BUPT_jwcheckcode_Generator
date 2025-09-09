@@ -8,9 +8,9 @@ Type=simple
 User=lc
 Group=lc
 WorkingDirectory=/home/lc/jw
-ExecStart=/usr/bin/dx serve --release
+ExecStart=dx serve --release
 Restart=always
-RestartSec=5
+RestartSec=1
 StandardOutput=journal
 StandardError=journal
 Environment=PATH=/usr/local/bin:/usr/bin:/bin

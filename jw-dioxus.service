@@ -8,13 +8,10 @@ Type=simple
 User=lc
 Group=lc
 WorkingDirectory=/home/lc/jw
-ExecStart=dx serve --release
+ExecStart=/home/lc/jw/run.sh
 Restart=always
-RestartSec=1
 StandardOutput=journal
 StandardError=journal
-Environment=PATH=/usr/local/bin:/usr/bin:/bin
-Environment=RUST_LOG=info
 
 # Security settings
 NoNewPrivileges=true

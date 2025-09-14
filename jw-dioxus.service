@@ -1,0 +1,24 @@
+[Unit]
+Description=JW Dioxus Web Application
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=lc
+Group=lc
+WorkingDirectory=/home/lc/jw
+ExecStart=/home/lc/jw/run.sh
+Restart=always
+StandardOutput=journal
+StandardError=journal
+
+# Security settings
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/home/lc/jw
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

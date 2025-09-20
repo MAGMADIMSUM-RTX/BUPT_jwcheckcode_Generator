@@ -156,7 +156,7 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
                                     img {
                                         src: "{src}",
                                         class: "qr-code-image",
-                                        alt: "签到二维码"
+                                        alt: "签到二维码",
                                     }
                                 } else {
                                     div { class: "home-success-message",
@@ -184,20 +184,24 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
                                             copy_to_clipboard(&location);
                                         }
                                     }
-                                    help_message.set("链接已复制到剪贴板，可以通过该链接访问此页面。".to_string());
+                                    help_message
+                                        .set(
+                                            "链接已复制到剪贴板，可以通过该链接访问此页面。"
+                                                .to_string(),
+                                        );
                                 },
                                 class: "home-button-primary",
                                 "复制链接"
                             }
-                            // button {
-                            //     onclick: move |_| {
-                            //         if let Some(window) = web_sys::window() {
-                            //             let _ = window.location().set_href("/");
-                            //         }
-                            //     },
-                            //     class: "home-button-primary",
-                            //     "返回扫码"
-                            // }
+                                                // button {
+                        //     onclick: move |_| {
+                        //         if let Some(window) = web_sys::window() {
+                        //             let _ = window.location().set_href("/");
+                        //         }
+                        //     },
+                        //     class: "home-button-primary",
+                        //     "返回扫码"
+                        // }
                         }
                     }
                 } else if !error_message().is_empty() {
@@ -229,7 +233,6 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
                     }
                 }
             }
-            
             MessageDisplay { error_message, help_message }
         }
     }

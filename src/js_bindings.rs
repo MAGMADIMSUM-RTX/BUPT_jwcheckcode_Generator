@@ -17,4 +17,7 @@ extern "C" {
 
     #[wasm_bindgen(js_name = setCameraZoom)]
     pub async fn set_camera_zoom(zoom: f64) -> JsValue;
+
+    #[wasm_bindgen(js_name = scanQRFromImage)]
+    pub async fn scan_qr_from_image(file: web_sys::File) -> JsValue;
 }

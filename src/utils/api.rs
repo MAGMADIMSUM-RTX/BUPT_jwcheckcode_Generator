@@ -91,6 +91,28 @@ pub async fn save_signing_code(signing_code: SigningCode) -> Result<String, Serv
     .await
 }
 
+#[server]
+pub async fn log_scan_result(data: String) -> Result<(), ServerFnError> {
+    use std::fs::OpenOptions;
+    use std::io::Write;
+    use chrono::Local;
+
+    let now = Local::now();
+    let timestamp = now.format("%Y-%m-%d %H:%M:%S");
+    let log_entry = format!("[{}] {}\n", timestamp, data);
+
+    let mut file = OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open("scanlogs.txt")
+        .map_err(|e| ServerFnError::new(format!("Failed to open log file: {}", e)))?;
+
+    file.write_all(log_entry.as_bytes())
+        .map_err(|e| ServerFnError::new(format!("Failed to write to log file: {}", e)))?;
+
+    Ok(())
+}
+
 #[server(endpoint = "update_class_info")]
 pub async fn update_class_info(
     site_id: String,

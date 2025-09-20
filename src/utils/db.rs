@@ -16,11 +16,11 @@ pub fn get_db() -> Arc<Mutex<rusqlite::Connection>> {
 
 #[cfg(feature = "server")]
 pub fn initialize_database() -> Result<rusqlite::Connection, Box<dyn std::error::Error>> {
-    if !std::path::Path::new("jw_code.db").exists() {
-        std::fs::File::create("jw_code.db")?;
-        println!("Created new database file: jw_code.db");
+    if !std::path::Path::new("lesson_data.db").exists() {
+        std::fs::File::create("lesson_data.db")?;
+        println!("Created new database file: lesson_data.db");
     }
-    let conn = rusqlite::Connection::open("jw_code.db")?;
+    let conn = rusqlite::Connection::open("lesson_data.db")?;
     
     match conn.prepare("PRAGMA journal_mode=WAL").and_then(|mut stmt| {
         stmt.query_row([], |_| Ok(()))

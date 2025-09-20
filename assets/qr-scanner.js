@@ -222,3 +222,98 @@ window.setCameraZoom = async function(zoomLevel) {
         return false;
     }
 };
+
+// Scan QR code from uploaded image file
+window.scanQRFromImage = async function(file) {
+    console.log('Scanning QR code from uploaded image:', file.name);
+    
+    return new Promise((resolve) => {
+        const reader = new FileReader();
+        
+        reader.onload = function(event) {
+            const img = new Image();
+            
+            img.onload = function() {
+                try {
+                    // Create a canvas to process the image
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    
+                    // Draw the image on canvas
+                    context.drawImage(img, 0, 0);
+                    
+                    // Get image data for QR scanning
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    
+                    // Check if jsQR is available and scan for QR code
+                    if (typeof jsQR !== 'undefined') {
+                        const code = jsQR(imageData.data, imageData.width, imageData.height);
+                        
+                        if (code) {
+                            console.log('QR code found in image:', code.data);
+                            resolve({
+                                success: true,
+                                data: code.data
+                            });
+                        } else {
+                            console.log('No QR code found in image');
+                            resolve({
+                                success: false,
+                                error: '图片中未找到二维码'
+                            });
+                        }
+                    } else {
+                        console.error('jsQR library not available');
+                        resolve({
+                            success: false,
+                            error: 'QR扫描库未加载'
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error processing image:', error);
+                    resolve({
+                        success: false,
+                        error: '图片处理失败: ' + error.message
+                    });
+                }
+            };
+            
+            img.onerror = function() {
+                console.error('Failed to load image');
+                resolve({
+                    success: false,
+                    error: '图片加载失败'
+                });
+            };
+            
+            img.src = event.target.result;
+        };
+        
+        reader.onerror = function() {
+            console.error('Failed to read file');
+            resolve({
+                success: false,
+                error: '文件读取失败'
+            });
+        };
+        
+        reader.readAsDataURL(file);
+    });
+};
+
+// Handle image upload from Rust/Dioxus
+window.handleImageUpload = async function(file) {
+    console.log('Handling image upload from file input:', file.name);
+    
+    // Call our existing image scanning function
+    const result = await window.scanQRFromImage(file);
+    
+    // Dispatch a custom event with the result
+    const event = new CustomEvent('image-qr-result', { 
+        detail: result
+    });
+    window.dispatchEvent(event);
+};

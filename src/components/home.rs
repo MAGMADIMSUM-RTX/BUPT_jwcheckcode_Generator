@@ -480,12 +480,12 @@ fn ScanControls(
                             oninput: move |_| {
                                 let js_code = format!(
                                     r#"
-                                                            const input = document.getElementById('image-upload');
-                                                            const file = input.files[0];
-                                                            if (file) {{
-                                                                window.handleImageUpload(file);
-                                                            }}
-                                                        "#,
+                                                                                    const input = document.getElementById('image-upload');
+                                                                                    const file = input.files[0];
+                                                                                    if (file) {{
+                                                                                        window.handleImageUpload(file);
+                                                                                    }}
+                                                                                "#,
                                 );
                                 let _ = js_sys::eval(&js_code);
                             },
@@ -505,7 +505,6 @@ fn ScanControls(
                             "上传图片"
                         }
                     }
-                
                 }
             } else {
                 button {
@@ -579,7 +578,6 @@ fn MessageDisplay(
                     }
                 }
             }
-        
         }
     }
 }

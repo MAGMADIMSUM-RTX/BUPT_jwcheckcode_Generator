@@ -33,7 +33,7 @@ fn copy_to_clipboard(text: &str) {
             }
         }
 
-        web_sys::console::log_1(&"复制功能不可用，请手动复制控制台中的内容".into());
+        web_sys::console::log_1(&"复制功能不可用，请手动复制链接".into());
     });
 }
 
@@ -43,6 +43,7 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
     let error_message = use_signal(|| String::new());
     let loading = use_signal(|| true); // 初始状态为加载中
 
+    let time_message = use_signal(|| String::new());
     let mut help_message = use_signal(|| String::new());
 
     // 根据 code_gen_option 决定如何处理 id
@@ -62,8 +63,7 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
         let mut class_data = class_data.clone();
         let mut error_message = error_message.clone();
         let mut loading = loading.clone();
-        // let mut
-
+        
         spawn_local(async move {
             loading.set(true);
             match get_class_data(site_id).await {
@@ -105,6 +105,8 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
     // 每2秒自动刷新二维码
     use_effect(move || {
         let mut img_src = img_src.clone();
+        let mut time_message = time_message.clone();
+        let class_data = class_data.clone();
         spawn_local(async move {
             loop {
                 // 等待2秒
@@ -115,6 +117,16 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
                         .unwrap();
                 });
                 wasm_bindgen_futures::JsFuture::from(promise).await.unwrap();
+
+                // 更新时间消息，使用 class_data 的创建时间
+                if let Some(data) = class_data() {
+                    if let Some(created_time) = data.last_created_time.as_ref() {
+                        time_message.set(format!(
+                            "原码创建于{}分钟前",
+                            time_diff_from_now(created_time)
+                        ));
+                    }
+                }
 
                 // 刷新二维码
                 img_src.restart();
@@ -233,14 +245,26 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
                     }
                 }
             }
-            MessageDisplay { error_message, help_message }
+            MessageDisplay { time_message, error_message, help_message }
         }
     }
 }
 
 #[component]
-fn MessageDisplay(error_message: Signal<String>, help_message: Signal<String>) -> Element {
+fn MessageDisplay(
+    time_message: Signal<String>,
+    error_message: Signal<String>,
+    help_message: Signal<String>,
+) -> Element {
     rsx! {
+        if !time_message().is_empty() {
+            div { 
+                class: "home-info-message",
+                style: "text-align: center;",
+                h4 { "{time_message()}" }
+            }
+        }
+
         if !help_message().is_empty() {
             div { class: "home-help-message",
                 h3 { "帮助:" }

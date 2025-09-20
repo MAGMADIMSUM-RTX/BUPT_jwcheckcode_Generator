@@ -34,6 +34,35 @@ pub fn get_formatted_time() -> String {
     }
 }
 
+pub fn time_diff_in_minutes(time1: &str, time2: &str) -> Option<i64> {
+    #[cfg(feature = "server")]
+    {
+        use chrono::DateTime;
+        let datetime1 = DateTime::parse_from_rfc3339(time1).ok()?;
+        let datetime2 = DateTime::parse_from_rfc3339(time2).ok()?;
+        let duration = datetime2.signed_duration_since(datetime1);
+        Some(duration.num_minutes().abs())
+    }
+    #[cfg(not(feature = "server"))]
+    {
+        use js_sys::Date;
+        let timestamp1 = Date::parse(time1);
+        let timestamp2 = Date::parse(time2);
+        if timestamp1.is_nan() || timestamp2.is_nan() {
+            return None;
+        }
+        let diff_ms = (timestamp2 - timestamp1).abs();
+        let diff_minutes = (diff_ms / (1000.0 * 60.0)).floor() as i64;
+        Some(diff_minutes)
+    }
+}
+
+// 计算从给定时间到当前时间的时间差（分钟）
+pub fn time_diff_from_now(from_time: &str) -> i64 {
+    let current_time = get_formatted_time();
+    time_diff_in_minutes(from_time, &current_time).unwrap_or(0)
+}
+
 pub fn compare_formatted_time(time1: &str, time2: &str, gap_time: u64) -> bool {
     #[cfg(feature = "server")]
     {

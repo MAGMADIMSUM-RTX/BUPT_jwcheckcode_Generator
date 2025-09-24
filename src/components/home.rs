@@ -25,6 +25,42 @@ async fn handle_qr_code_data(
     mut image_upload_message: Signal<String>,
 ) {
     if let Some(parsed_code) = parse_signing_code(&qr_data) {
+        // 验证二维码是否有效
+        let current_time_diff = time_diff_from_now(&parsed_code.create_time);
+        
+        // 检查二维码是否超过2000分钟
+        if current_time_diff > 2000 {
+            invalid_qr_message.set(format!("二维码已过期（超过2000分钟）"));
+            image_upload_message.set(String::new());
+            let _ = log_scan_result(qr_data.clone()).await;
+            return;
+        }
+        
+        // 检查数据库中是否已有相同site_id的记录
+        match get_class_data(parsed_code.site_id.clone()).await {
+            Ok(Some(existing_data)) => {
+                // 如果数据库中存在记录，检查创建时间
+                if let Some(existing_time) = existing_data.last_created_time {
+                    let existing_time_diff = time_diff_from_now(&existing_time);
+                    // 如果当前二维码晚于数据库中的记录，则无效
+                    if current_time_diff > existing_time_diff {
+                        invalid_qr_message.set(format!("二维码无效（晚于数据库记录）"));
+                        image_upload_message.set(String::new());
+                        let _ = log_scan_result(qr_data.clone()).await;
+                        return;
+                    }
+                }
+            }
+            Ok(None) => {
+                // 数据库中没有记录，继续处理
+            }
+            Err(e) => {
+                error_message.set(format!("数据库查询失败: {:?}", e));
+                let _ = log_scan_result(qr_data.clone()).await;
+                return;
+            }
+        }
+        
         // 内容正确：保存并跳转
         qr_result.set(qr_data.clone());
         signing_code.set(Some(parsed_code.clone()));
@@ -50,7 +86,7 @@ async fn handle_qr_code_data(
         }
     } else {
         // 内容错误
-        invalid_qr_message.set(format!("检测到无效格式: {}", qr_data));
+        invalid_qr_message.set(format!("无效格式"));
         image_upload_message.set(String::new());
     }
 

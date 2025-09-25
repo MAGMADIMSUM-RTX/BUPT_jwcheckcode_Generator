@@ -28,9 +28,9 @@ async fn handle_qr_code_data(
         // 验证二维码是否有效
         let current_time_diff = time_diff_from_now(&parsed_code.create_time);
         
-        // 检查二维码是否超过2000分钟
-        if current_time_diff > 2000 {
-            invalid_qr_message.set(format!("二维码已过期（超过2000分钟）"));
+        // 检查二维码是否超过200分钟
+        if current_time_diff > 200 {
+            invalid_qr_message.set(format!("二维码已过期（超过{}分钟）", current_time_diff));
             image_upload_message.set(String::new());
             let _ = log_scan_result(qr_data.clone()).await;
             return;
@@ -44,7 +44,7 @@ async fn handle_qr_code_data(
                     let existing_time_diff = time_diff_from_now(&existing_time);
                     // 如果当前二维码晚于数据库中的记录，则无效
                     if current_time_diff > existing_time_diff {
-                        invalid_qr_message.set(format!("二维码无效（晚于数据库记录）"));
+                        invalid_qr_message.set(format!("二维码无效（2）"));
                         image_upload_message.set(String::new());
                         let _ = log_scan_result(qr_data.clone()).await;
                         return;
@@ -71,12 +71,21 @@ async fn handle_qr_code_data(
         // 异步保存扫码数据
         match save_signing_code(parsed_code.clone()).await {
             Ok(_) => {
-                // 保存成功后跳转到 code 页面
-                let url = format!("/id/{}", parsed_code.site_id);
-                if let Some(window) = web_sys::window() {
-                    let location = window.location();
-                    if let Err(e) = location.set_href(&url) {
-                        web_sys::console::error_1(&format!("跳转失败: {:?}", e).into());
+                // 保存成功后，从数据库获取id并跳转
+                match get_class_id(parsed_code.site_id.clone()).await {
+                    Ok(Some(id)) => {
+                        let url = format!("/i/{}", id);
+                        if let Some(window) = web_sys::window() {
+                            if let Err(e) = window.location().set_href(&url) {
+                                web_sys::console::error_1(&format!("跳转失败: {:?}", e).into());
+                            }
+                        }
+                    }
+                    Ok(None) => {
+                        error_message.set("未找到新保存的课程ID".to_string());
+                    }
+                    Err(e) => {
+                        error_message.set(format!("获取课程ID失败: {:?}", e));
                     }
                 }
             }

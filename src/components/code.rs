@@ -47,9 +47,9 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
     let mut help_message = use_signal(|| String::new());
 
     // 根据 code_gen_option 决定如何处理 id
-    let site_id = match code_gen_option.as_str() {
+    let _site_id = match code_gen_option.as_str() {
+        "i" => id.clone(),
         "id" => id.clone(),
-        "name" => id.clone(),
         other => {
             return rsx! {
                 PageNotFound { segments: vec![other.to_string(), id.clone()] }
@@ -59,14 +59,30 @@ pub fn Code(code_gen_option: String, id: String) -> Element {
 
     // 加载数据
     use_effect(move || {
-        let site_id = site_id.clone();
+        let id = id.clone();
+        let code_gen_option = code_gen_option.clone();
         let mut class_data = class_data.clone();
         let mut error_message = error_message.clone();
         let mut loading = loading.clone();
         
         spawn_local(async move {
             loading.set(true);
-            match get_class_data(site_id).await {
+            let result = match code_gen_option.as_str() {
+                "i" => {
+                    if let Ok(record_id) = id.parse::<i64>() {
+                        get_class_data_by_id(record_id).await
+                    } else {
+                        Err(ServerFnError::new(format!("无效的ID格式: {}", id)))
+                    }
+                }
+                "id"  => get_class_data(id).await,
+                _ => {
+                    // This case is already handled by the PageNotFound component, but we can add a safeguard.
+                    Err(ServerFnError::new("无效的选项".to_string()))
+                }
+            };
+
+            match result {
                 Ok(Some(data)) => {
                     class_data.set(Some(data));
                     error_message.set(String::new());
@@ -258,9 +274,7 @@ fn MessageDisplay(
 ) -> Element {
     rsx! {
         if !time_message().is_empty() {
-            div { 
-                class: "home-info-message",
-                style: "text-align: center;",
+            div { class: "home-info-message", style: "text-align: center;",
                 h4 { "{time_message()}" }
             }
         }

@@ -149,7 +149,7 @@ pub async fn get_class_data(site_id: String) -> Result<Option<ClassData>, Server
         .map_err(|e| ServerFnError::new(format!("Database lock error: {}", e)))?;
     let mut stmt = conn
         .prepare(
-            "SELECT site_id, class_name, classes, last_checkwork_id, \
+            "SELECT id, site_id, class_name, classes, last_checkwork_id, \
                 last_class_lesson_id, last_created_time, is_expired
          FROM class_data 
          WHERE site_id = ?1",
@@ -157,17 +157,68 @@ pub async fn get_class_data(site_id: String) -> Result<Option<ClassData>, Server
         .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
     let class_data = stmt.query_row(rusqlite::params![site_id], |row| {
         Ok(ClassData {
-            site_id: row.get(0)?,
-            class_name: row.get(1)?,
-            classes: row.get(2)?,
-            last_checkwork_id: row.get(3)?,
-            last_class_lesson_id: row.get(4)?,
-            last_created_time: row.get(5)?,
-            is_expired: row.get(6)?,
+            // id: row.get(0)?,
+            site_id: row.get(1)?,
+            class_name: row.get(2)?,
+            classes: row.get(3)?,
+            last_checkwork_id: row.get(4)?,
+            last_class_lesson_id: row.get(5)?,
+            last_created_time: row.get(6)?,
+            is_expired: row.get(7)?,
         })
     });
     match class_data {
         Ok(data) => Ok(Some(data)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(ServerFnError::new(format!("Database query error: {}", e))),
+    }
+}
+
+#[server(endpoint = "get_class_data_by_id")]
+pub async fn get_class_data_by_id(id: i64) -> Result<Option<ClassData>, ServerFnError> {
+    let db = get_db();
+    let conn = db
+        .lock()
+        .map_err(|e| ServerFnError::new(format!("Database lock error: {}", e)))?;
+    let mut stmt = conn
+        .prepare(
+            "SELECT id, site_id, class_name, classes, last_checkwork_id, \
+                last_class_lesson_id, last_created_time, is_expired
+         FROM class_data 
+         WHERE id = ?1",
+        )
+        .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+    let class_data = stmt.query_row(rusqlite::params![id], |row| {
+        Ok(ClassData {
+            // id: row.get(0)?,
+            site_id: row.get(1)?,
+            class_name: row.get(2)?,
+            classes: row.get(3)?,
+            last_checkwork_id: row.get(4)?,
+            last_class_lesson_id: row.get(5)?,
+            last_created_time: row.get(6)?,
+            is_expired: row.get(7)?,
+        })
+    });
+    match class_data {
+        Ok(data) => Ok(Some(data)),
+        Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+        Err(e) => Err(ServerFnError::new(format!("Database query error: {}", e))),
+    }
+}
+
+#[server(endpoint = "get_class_id")]
+pub async fn get_class_id(site_id: String) -> Result<Option<i64>, ServerFnError> {
+    let db = get_db();
+    let conn = db
+        .lock()
+        .map_err(|e| ServerFnError::new(format!("Database lock error: {}", e)))?;
+    let mut stmt = conn
+        .prepare("SELECT id FROM class_data WHERE site_id = ?1")
+        .map_err(|e| ServerFnError::new(format!("Database prepare error: {}", e)))?;
+    let result = stmt.query_row(rusqlite::params![site_id], |row| row.get(0));
+    match result {
+        Ok(id) => Ok(Some(id)),
         Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
         Err(e) => Err(ServerFnError::new(format!("Database query error: {}", e))),
     }
@@ -181,7 +232,7 @@ pub async fn list_all_classes() -> Result<Vec<ClassData>, ServerFnError> {
         .map_err(|e| ServerFnError::new(format!("Database lock error: {}", e)))?;
     let mut stmt = conn
         .prepare(
-            "SELECT site_id, class_name, classes, last_checkwork_id,\
+            "SELECT id, site_id, class_name, classes, last_checkwork_id,\
                 last_class_lesson_id, last_created_time, is_expired
          FROM class_data 
          ORDER BY updated_at DESC",
@@ -190,13 +241,14 @@ pub async fn list_all_classes() -> Result<Vec<ClassData>, ServerFnError> {
     let class_iter = stmt
         .query_map([], |row| {
             Ok(ClassData {
-                site_id: row.get(0)?,
-                class_name: row.get(1)?,
-                classes: row.get(2)?,
-                last_checkwork_id: row.get(3)?,
-                last_class_lesson_id: row.get(4)?,
-                last_created_time: row.get(5)?,
-                is_expired: row.get(6)?,
+                // id: row.get(0)?,
+                site_id: row.get(1)?,
+                class_name: row.get(2)?,
+                classes: row.get(3)?,
+                last_checkwork_id: row.get(4)?,
+                last_class_lesson_id: row.get(5)?,
+                last_created_time: row.get(6)?,
+                is_expired: row.get(7)?,
             })
         })
         .map_err(|e| ServerFnError::new(format!("Database query error: {}", e)))?;

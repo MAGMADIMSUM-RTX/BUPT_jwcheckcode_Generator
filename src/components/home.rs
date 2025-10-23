@@ -30,10 +30,10 @@ async fn handle_qr_code_data(
         
         // 检查二维码是否超过200分钟
         if current_time_diff > 200 {
-            invalid_qr_message.set(format!("二维码已过期（超过{}分钟）", current_time_diff));
+            invalid_qr_message.set(format!("二维码创建于{}分钟前", current_time_diff));
             image_upload_message.set(String::new());
             let _ = log_scan_result(qr_data.clone()).await;
-            return;
+            // return;
         }
         
         // 检查数据库中是否已有相同site_id的记录
@@ -47,7 +47,7 @@ async fn handle_qr_code_data(
                         invalid_qr_message.set(format!("二维码无效（2）"));
                         image_upload_message.set(String::new());
                         let _ = log_scan_result(qr_data.clone()).await;
-                        return;
+                        // return;
                     }
                 }
             }

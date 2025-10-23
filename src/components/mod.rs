@@ -3,9 +3,11 @@ pub mod code;
 pub mod home;
 pub mod nav;
 pub mod pagenotfound;
+pub mod systemppdating;
 
 // 重新导出所有组件，方便外部使用
 pub use code::Code;
 pub use home::Home;
 pub use nav::Navbar;
 pub use pagenotfound::PageNotFound;
+pub use systemppdating::SystemUpdating;

@@ -1,6 +1,6 @@
 use dioxus::prelude::*;
 mod components;
-use crate::components::{Code, Home, Navbar, PageNotFound};
+use crate::components::{Code, Home, Navbar, PageNotFound, SystemUpdating};
 mod models;
 // mod routes;
 
@@ -44,8 +44,11 @@ pub enum Route {
     #[layout(Navbar)]
     #[route("/:..segments")]
     PageNotFound { segments: Vec<String> },
-    #[route("/")]
+    #[route("/home")]
     Home {},
+    #[route("/")]
+    // Home {},
+    SystemUpdating {},
     #[route("/:code_gen_option/:id")]
     Code { code_gen_option: String, id: String},
 }
